@@ -29,3 +29,8 @@ func (u *User) WithoutPassword() *UserWithoutPassword {
 		Email:   u.Email,
 	}
 }
+
+type JsonTokens struct {
+	Id     string            `json:"_id" bson:"_id"`
+	Tokens map[string]string `json:"tokens" bson:"tokens"`
+}

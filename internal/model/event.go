@@ -3,7 +3,7 @@ package model
 type Event struct {
 	Id            string   `json:"id"`
 	Title         string   `json:"title" bson:"title"`
-	Description   string   `json:"descripton" bson:"description"`
+	Description   string   `json:"description" bson:"description"`
 	Timestamp     int64    `json:"timestamp" bson:"timestamp"`
 	Members       []string `json:"members" bson:"members"`
 	ActiveMembers []string `json:"active_members" bson:"active_members"`
@@ -13,17 +13,21 @@ type Event struct {
 }
 
 type BsonEvent struct {
-	Id     string `bson:"id"`
-	Meta   Event  `bson:"event"`
-	Actual Event  `bson:"actual"`
+	Meta   Event `json:"meta" bson:"meta"`
+	Actual Event `json:"actual" bson:"actual"`
 }
 
 type BsonMetaEvent struct {
 	Id   string `bson:"id"`
-	Meta Event  `bson:"event"`
+	Meta Event  `bson:"meta"`
 }
 
 type BsonActualEvent struct {
 	Id     string `bson:"id"`
 	Actual Event  `bson:"actual"`
+}
+
+type JsonEvent struct {
+	Id     string               `json:"_id" bson:"_id"`
+	Events map[string]BsonEvent `json:"events" bson:"events"`
 }

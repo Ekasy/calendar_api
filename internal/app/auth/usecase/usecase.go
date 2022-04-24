@@ -1,11 +1,10 @@
 package usecase
 
 import (
-	"fmt"
 	"nocalendar/internal/app/auth"
 	"nocalendar/internal/app/errors"
 	"nocalendar/internal/model"
-	"time"
+	"nocalendar/internal/util"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
@@ -23,12 +22,6 @@ func NewAuthUsecase(repo auth.AuthRepository, logger *logrus.Logger) auth.AuthUs
 	}
 }
 
-func generateToken(login string) string {
-	sec := time.Now().Unix()
-	hash_, _ := bcrypt.GenerateFromPassword([]byte(fmt.Sprintf("%s-%d", login, sec)), 4)
-	return string(hash_)
-}
-
 func (au *AuthUsecase) CreateUser(usr *model.User) (string, error) {
 	valid, err := au.repo.CheckUser(usr)
 	if err != nil || !valid {
@@ -40,7 +33,7 @@ func (au *AuthUsecase) CreateUser(usr *model.User) (string, error) {
 		return "", errors.InternalError
 	}
 	usr.Password = string(hash_)
-	usr.Token = generateToken(usr.Login)
+	usr.Token = util.GenerateRandomString(32)
 
 	usr, err = au.repo.Insert(usr)
 	return usr.Token, err
@@ -66,4 +59,14 @@ func (au *AuthUsecase) GetUser(ausr *model.Auth) (*model.User, error) {
 	}
 
 	return usr, nil
+}
+
+func (au *AuthUsecase) GetUserByToken(token string) (*model.User, error) {
+	login, err := au.repo.GetLoginByToken(token)
+	if err != nil {
+		return nil, err
+	}
+
+	usr, err := au.repo.GetUser(login)
+	return usr, err
 }

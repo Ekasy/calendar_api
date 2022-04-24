@@ -20,4 +20,6 @@ var (
 	LoginAlreadyExists *Error = &Error{Message: "user with this login already exists"}
 	EmailAlreadyExists *Error = &Error{Message: "user with this email already exists"}
 	InternalError      *Error = &Error{Message: "something went wrong"}
+
+	EventNotFound *Error = &Error{Message: "event not found"}
 )

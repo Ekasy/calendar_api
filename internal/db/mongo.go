@@ -65,6 +65,27 @@ func (d *Database) initCollections() error {
 	}
 
 	opts = options.FindOne()
+	opts.SetProjection(bson.M{"tokens.nocalender_token_init": 1})
+	exist, err = d.find(bson.M{"_id": "json/tokens"}, opts)
+	if err != nil {
+		d.logger.Warnf("[initCollections] find token: %s", err.Error())
+		return errors.InternalError
+	}
+
+	if !exist {
+		err = d.insert(bson.M{
+			"_id": "json/tokens",
+			"tokens": bson.M{
+				"nocalender_token_init": 1,
+			},
+		})
+		if err != nil {
+			d.logger.Warnf("[initCollections] insert token: %s", err.Error())
+			return errors.InternalError
+		}
+	}
+
+	opts = options.FindOne()
 	opts.SetProjection(bson.M{"events.nocalender_event_init.id": 1})
 	exist, err = d.find(bson.M{"_id": "json/events"}, opts)
 	if err != nil {
@@ -83,6 +104,27 @@ func (d *Database) initCollections() error {
 		})
 		if err != nil {
 			d.logger.Warnf("[initCollections] insert event: %s", err.Error())
+			return errors.InternalError
+		}
+	}
+
+	opts = options.FindOne()
+	opts.SetProjection(bson.M{"members.nocalender_member_init": 1})
+	exist, err = d.find(bson.M{"_id": "json/members"}, opts)
+	if err != nil {
+		d.logger.Warnf("[initCollections] find member: %s", err.Error())
+		return errors.InternalError
+	}
+
+	if !exist {
+		err = d.insert(bson.M{
+			"_id": "json/members",
+			"members": bson.M{
+				"nocalender_member_init": 1,
+			},
+		})
+		if err != nil {
+			d.logger.Warnf("[initCollections] insert member: %s", err.Error())
 			return errors.InternalError
 		}
 	}

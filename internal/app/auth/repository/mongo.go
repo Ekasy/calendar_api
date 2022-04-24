@@ -41,7 +41,7 @@ func (ar *AuthRepository) userToBson(usr *model.User) (*bson.M, error) {
 	return doc, nil
 }
 
-func (ar *AuthRepository) Insert(usr *model.User) (*model.User, error) {
+func (ar *AuthRepository) insertUser(usr *model.User) (*model.User, error) {
 	filter := bson.M{
 		"_id": "json/users",
 	}
@@ -59,10 +59,38 @@ func (ar *AuthRepository) Insert(usr *model.User) (*model.User, error) {
 
 	_, err = ar.mongo.Conn.UpdateOne(ar.mongo.Ctx, filter, body)
 	if err != nil {
-		ar.logger.Warnf("[Insert] UpdateOne: %s", err.Error())
+		ar.logger.Warnf("[insertUser] UpdateOne: %s", err.Error())
 		return usr, errors.InternalError
 	}
 	return usr, nil
+}
+
+func (ar *AuthRepository) insertToken(login, token string) error {
+	filter := bson.M{
+		"_id": "json/tokens",
+	}
+
+	body := bson.M{
+		"$set": bson.M{
+			fmt.Sprintf("tokens.%s", token): login,
+		},
+	}
+
+	_, err := ar.mongo.Conn.UpdateOne(ar.mongo.Ctx, filter, body)
+	if err != nil {
+		ar.logger.Warnf("[insertToken] UpdateOne: %s", err.Error())
+		return errors.InternalError
+	}
+	return nil
+}
+
+func (ar *AuthRepository) Insert(usr *model.User) (*model.User, error) {
+	usr, err := ar.insertUser(usr)
+	if err != nil {
+		return nil, err
+	}
+	err = ar.insertToken(usr.Login, usr.Token)
+	return usr, err
 }
 
 func (ar *AuthRepository) existEmail(email string) (bool, error) {
@@ -153,5 +181,24 @@ func (ar *AuthRepository) GetUser(login string) (*model.User, error) {
 		return nil, errors.UserNotFound
 	default:
 		return nil, errors.InternalError
+	}
+}
+
+func (ar *AuthRepository) GetLoginByToken(token string) (string, error) {
+	doc := &model.JsonTokens{}
+	opts := options.FindOne()
+	opts.SetProjection(bson.M{fmt.Sprintf("tokens.%s", token): 1})
+	err := ar.mongo.Conn.FindOne(ar.mongo.Ctx, bson.M{"_id": "json/tokens"}, opts).Decode(doc)
+	switch err {
+	case nil:
+		if len(doc.Tokens) == 0 {
+			return "", errors.UserNotFound
+		}
+		login := doc.Tokens[token]
+		return login, err
+	case mongo.ErrNoDocuments:
+		return "", errors.UserNotFound
+	default:
+		return "", errors.InternalError
 	}
 }
