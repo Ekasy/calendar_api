@@ -31,3 +31,17 @@ type JsonEvent struct {
 	Id     string               `json:"_id" bson:"_id"`
 	Events map[string]BsonEvent `json:"events" bson:"events"`
 }
+
+func (be *BsonEvent) ToAnswer() map[string]interface{} {
+	hm := make(map[string]interface{}, 0)
+	hm["message"] = "ok"
+	hm["event"] = be
+	return hm
+}
+
+func (je *JsonEvent) ToAnswer() map[string]interface{} {
+	hm := make(map[string]interface{}, 0)
+	hm["message"] = "ok"
+	hm["events"] = je.Events
+	return hm
+}

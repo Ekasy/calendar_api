@@ -46,3 +46,26 @@ func (eu *EventsUsecase) CreateEvent(event *model.Event, author string) (string,
 func (eu *EventsUsecase) GetEvent(eventId string, login string) (*model.BsonEvent, error) {
 	return eu.repo.GetEvent(eventId)
 }
+
+func (eu *EventsUsecase) GetAllEvents(login string, from, to int64) (*model.JsonEvent, error) {
+	eventIds, err := eu.repo.GetEventsIdsByLogin(login)
+	if err != nil {
+		return nil, err
+	}
+
+	events := &model.JsonEvent{}
+	events.Events = make(map[string]model.BsonEvent, 0)
+	for _, eventId := range eventIds {
+		ev, err := eu.GetEvent(eventId, login)
+		if err != nil {
+			continue
+		}
+
+		if from > ev.Actual.Timestamp || ev.Actual.Timestamp > to {
+			continue
+		}
+
+		events.Events[eventId] = *ev
+	}
+	return events, nil
+}

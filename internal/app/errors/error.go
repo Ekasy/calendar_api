@@ -22,4 +22,6 @@ var (
 	InternalError      *Error = &Error{Message: "something went wrong"}
 
 	EventNotFound *Error = &Error{Message: "event not found"}
+
+	MemberNotFound *Error = &Error{Message: "user has not events"}
 )

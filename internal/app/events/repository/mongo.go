@@ -142,3 +142,21 @@ func (er *EventsRepository) GetEvent(eventId string) (*model.BsonEvent, error) {
 		return nil, errors.InternalError
 	}
 }
+
+func (er *EventsRepository) GetEventsIdsByLogin(login string) ([]string, error) {
+	doc := &model.BsonMembers{}
+	opts := options.FindOne()
+	opts.SetProjection(bson.M{fmt.Sprintf("members.%s", login): 1})
+	err := er.mongo.Conn.FindOne(er.mongo.Ctx, bson.M{"_id": "json/members"}, opts).Decode(doc)
+	switch err {
+	case nil:
+		if len(doc.Members) == 0 {
+			return nil, errors.MemberNotFound
+		}
+		return doc.Members[login], err
+	case mongo.ErrNoDocuments:
+		return nil, errors.MemberNotFound
+	default:
+		return nil, errors.InternalError
+	}
+}
