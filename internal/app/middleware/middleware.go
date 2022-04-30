@@ -48,6 +48,8 @@ func (am *AuthMiddleware) TokenChecking(next http.Handler) http.Handler {
 		}
 
 		ctx := context.WithValue(r.Context(), ContextUserKey, usr)
+
+		w.Header().Set("Authorize", usr.Token)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

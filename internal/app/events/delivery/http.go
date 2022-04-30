@@ -39,6 +39,7 @@ func (ed *EventsDelivery) Routing(r *mux.Router) {
 
 	ev.HandleFunc("", ed.CreateEvent).Methods(http.MethodPost, http.MethodOptions)
 	ev.HandleFunc("/one/{event_id:[\\w]+}", ed.GetEvent).Methods(http.MethodGet, http.MethodOptions)
+	ev.HandleFunc("/edit", ed.EditEvent).Methods(http.MethodPost, http.MethodOptions)
 	ev.HandleFunc("/all", ed.GetAllEvents).Methods(http.MethodGet, http.MethodOptions)
 }
 
@@ -75,6 +76,52 @@ func (ed *EventsDelivery) CreateEvent(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(200)
 	w.Write([]byte(fmt.Sprintf(`{"message": "ok", "event_id": "%s"}`, eventId)))
+}
+
+func (ed *EventsDelivery) EditEvent(w http.ResponseWriter, r *http.Request) {
+	affectMeta := false
+	if r.URL.Query().Get("affect_meta") == "true" {
+		affectMeta = true
+	}
+
+	eventModel := &model.Event{}
+	defer r.Body.Close()
+	buf, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		ed.logger.Warnf("[CreateEvent] cannot convert body to bytes: %s", err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	err = json.Unmarshal(buf, &eventModel)
+	if err != nil {
+		ed.logger.Warnf("[CreateEvent] cannot unmarshal bytes: %s", err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	usr := r.Context().Value(middleware.ContextUserKey).(*model.User)
+	event, err := ed.eventUsecase.EditEvent(eventModel, usr.Login, affectMeta)
+	if err != nil {
+		ed.logger.Warnf("[EditEvent] event not edited: %s", err.Error())
+		switch err {
+		case errors.EventNotFound:
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(errors.ErrorToBytes(err)))
+		case errors.HasNoRights:
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte(errors.ErrorToBytes(err)))
+		case errors.EventNotEdited:
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(errors.ErrorToBytes(err)))
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(200)
+	w.Write(model.ToBytes(event.ToAnswer()))
 }
 
 func (ed *EventsDelivery) GetEvent(w http.ResponseWriter, r *http.Request) {

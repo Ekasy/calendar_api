@@ -73,9 +73,7 @@ func (er *EventsRepository) updateActualEvent(event *model.Event) error {
 		"_id": "json/events",
 	}
 
-	doc, err := er.eventToBson(model.BsonActualEvent{
-		Actual: *event,
-	})
+	doc, err := er.eventToBson(event)
 	if err != nil {
 		return err
 	}
@@ -101,7 +99,7 @@ func (er *EventsRepository) addEventToMember(members []string, eventId string) e
 
 	for _, member := range members {
 		body := bson.M{
-			"$push": bson.M{
+			"$addToSet": bson.M{
 				fmt.Sprintf("members.%s", member): eventId,
 			},
 		}
@@ -115,8 +113,14 @@ func (er *EventsRepository) addEventToMember(members []string, eventId string) e
 	return nil
 }
 
-func (er *EventsRepository) InsertEvent(event *model.Event) (*model.Event, error) {
-	err := er.updateEvent(event)
+func (er *EventsRepository) InsertEvent(event *model.Event, is_actual bool) (*model.Event, error) {
+	var err error
+	if is_actual {
+		err = er.updateActualEvent(event)
+	} else {
+		err = er.updateEvent(event)
+	}
+
 	if err != nil {
 		return event, err
 	}
