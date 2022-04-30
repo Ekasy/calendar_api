@@ -134,3 +134,16 @@ func (eu *EventsUsecase) GetAllEvents(login string, from, to int64) (*model.Json
 	}
 	return events, nil
 }
+
+func (eu *EventsUsecase) RemoveEvent(eventId, login string) error {
+	event, err := eu.GetEvent(eventId, login)
+	if err != nil {
+		return err
+	}
+
+	if event.Meta.Author != login {
+		return errors.HasNoRights
+	}
+
+	return eu.repo.RemoveEvent(eventId)
+}

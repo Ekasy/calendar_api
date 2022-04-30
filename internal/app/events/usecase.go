@@ -7,4 +7,5 @@ type EventsUsecase interface {
 	EditEvent(event *model.Event, login string, affectMeta bool) (*model.BsonEvent, error)
 	GetEvent(eventId string, login string) (*model.BsonEvent, error)
 	GetAllEvents(login string, from, to int64) (*model.JsonEvent, error)
+	RemoveEvent(eventId, login string) error
 }

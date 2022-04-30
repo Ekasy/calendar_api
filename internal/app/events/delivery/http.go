@@ -41,6 +41,7 @@ func (ed *EventsDelivery) Routing(r *mux.Router) {
 	ev.HandleFunc("/one/{event_id:[\\w]+}", ed.GetEvent).Methods(http.MethodGet, http.MethodOptions)
 	ev.HandleFunc("/edit", ed.EditEvent).Methods(http.MethodPost, http.MethodOptions)
 	ev.HandleFunc("/all", ed.GetAllEvents).Methods(http.MethodGet, http.MethodOptions)
+	ev.HandleFunc("/remove/{event_id:[\\w]+}", ed.RemoveEvent).Methods(http.MethodDelete, http.MethodOptions)
 }
 
 func (ed *EventsDelivery) CreateEvent(w http.ResponseWriter, r *http.Request) {
@@ -199,4 +200,29 @@ func (ed *EventsDelivery) GetAllEvents(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(200)
 	w.Write(model.ToBytes(events.ToAnswer()))
+}
+
+func (ed *EventsDelivery) RemoveEvent(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	eventId := vars["event_id"]
+	usr := r.Context().Value(middleware.ContextUserKey).(*model.User)
+
+	err := ed.eventUsecase.RemoveEvent(eventId, usr.Login)
+	if err != nil {
+		ed.logger.Warnf("[RemoveEvent] event not found: %s", err.Error())
+		switch err {
+		case errors.EventNotFound:
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(errors.ErrorToBytes(err)))
+		case errors.HasNoRights:
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte(errors.ErrorToBytes(err)))
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(200)
+	w.Write([]byte(fmt.Sprintf(`{"message": "ok", "event_id": "%s"}`, eventId)))
 }

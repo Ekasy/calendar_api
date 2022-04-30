@@ -164,3 +164,22 @@ func (er *EventsRepository) GetEventsIdsByLogin(login string) ([]string, error) 
 		return nil, errors.InternalError
 	}
 }
+
+func (er *EventsRepository) RemoveEvent(eventId string) error {
+	filter := bson.M{
+		"_id": "json/events",
+	}
+
+	body := bson.M{
+		"$unset": bson.M{
+			fmt.Sprintf("events.%s", eventId): "",
+		},
+	}
+
+	_, err := er.mongo.Conn.UpdateOne(er.mongo.Ctx, filter, body)
+	if err != nil {
+		er.logger.Warnf("[RemoveEvent] UpdateOne: %s", err.Error())
+		return errors.InternalError
+	}
+	return nil
+}

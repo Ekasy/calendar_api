@@ -6,4 +6,5 @@ type EventsRepository interface {
 	InsertEvent(event *model.Event, is_actial bool) (*model.Event, error)
 	GetEvent(eventId string) (*model.BsonEvent, error)
 	GetEventsIdsByLogin(login string) ([]string, error)
+	RemoveEvent(eventId string) error
 }
