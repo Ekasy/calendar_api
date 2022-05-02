@@ -114,7 +114,12 @@ func (eu *EventsUsecase) GetEvent(eventId string, login string) (*model.BsonEven
 
 func (eu *EventsUsecase) GetAllEvents(login string, from, to int64) (*model.JsonEvent, error) {
 	eventIds, err := eu.repo.GetEventsIdsByLogin(login)
-	if err != nil {
+	switch err {
+	case nil:
+		break
+	case errors.MemberNotFound:
+		return &model.JsonEvent{}, nil
+	default:
 		return nil, err
 	}
 

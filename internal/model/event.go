@@ -1,5 +1,7 @@
 package model
 
+import "sort"
+
 type Event struct {
 	Id            string   `json:"id"`
 	Title         string   `json:"title" bson:"title"`
@@ -39,9 +41,20 @@ func (be *BsonEvent) ToAnswer() map[string]interface{} {
 	return hm
 }
 
-func (je *JsonEvent) ToAnswer() map[string]interface{} {
+func (je *JsonEvent) ToAnswer(sorted bool) map[string]interface{} {
 	hm := make(map[string]interface{}, 0)
 	hm["message"] = "ok"
-	hm["events"] = je.Events
+	events := make([]BsonEvent, 0)
+	for _, value := range je.Events {
+		events = append(events, value)
+	}
+
+	if sorted {
+		sort.Slice(events, func(i, j int) bool {
+			return events[i].Actual.Timestamp < events[j].Actual.Timestamp
+		})
+	}
+
+	hm["events"] = events
 	return hm
 }

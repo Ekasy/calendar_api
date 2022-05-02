@@ -199,7 +199,7 @@ func (ed *EventsDelivery) GetAllEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(200)
-	w.Write(model.ToBytes(events.ToAnswer()))
+	w.Write(model.ToBytes(events.ToAnswer(true)))
 }
 
 func (ed *EventsDelivery) RemoveEvent(w http.ResponseWriter, r *http.Request) {
