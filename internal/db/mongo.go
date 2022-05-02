@@ -120,7 +120,7 @@ func (d *Database) initCollections() error {
 		err = d.insert(bson.M{
 			"_id": "json/members",
 			"members": bson.M{
-				"nocalender_member_init": 1,
+				"nocalender_member_init": bson.A{"nocalender_event_init"},
 			},
 		})
 		if err != nil {

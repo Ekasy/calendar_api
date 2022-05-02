@@ -7,4 +7,6 @@ type EventsRepository interface {
 	GetEvent(eventId string) (*model.BsonEvent, error)
 	GetEventsIdsByLogin(login string) ([]string, error)
 	RemoveEvent(eventId string) error
+	GetAllMembers() (map[string][]string, error)
+	RemoveEventIdFromMember(login, eventId string) error
 }

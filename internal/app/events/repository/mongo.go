@@ -183,3 +183,43 @@ func (er *EventsRepository) RemoveEvent(eventId string) error {
 	}
 	return nil
 }
+
+func (er *EventsRepository) GetAllMembers() (map[string][]string, error) {
+	filter := bson.M{
+		"_id": "json/members",
+	}
+
+	doc := er.mongo.Conn.FindOne(er.mongo.Ctx, filter)
+	if doc.Err() != nil {
+		er.logger.Warnf("[GetAllMembers] FindOne: %s", doc.Err().Error())
+		return nil, errors.InternalError
+	}
+
+	hm := &model.BsonMembers{}
+	err := doc.Decode(hm)
+	if err != nil {
+		er.logger.Warnf("[GetAllMembers] Decode: %s", err.Error())
+		return nil, errors.InternalError
+	}
+
+	return hm.Members, nil
+}
+
+func (er *EventsRepository) RemoveEventIdFromMember(login, eventId string) error {
+	filter := bson.M{
+		"_id": "json/members",
+	}
+
+	body := bson.M{
+		"$pull": bson.M{
+			fmt.Sprintf("members.%s", login): eventId,
+		},
+	}
+
+	_, err := er.mongo.Conn.UpdateOne(er.mongo.Ctx, filter, body)
+	if err != nil {
+		er.logger.Warnf("[RemoveEventIdFromMember] UpdateOne: %s", err.Error())
+		return errors.InternalError
+	}
+	return nil
+}
