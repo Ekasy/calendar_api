@@ -58,3 +58,8 @@ func (je *JsonEvent) ToAnswer(sorted bool) map[string]interface{} {
 	hm["events"] = events
 	return hm
 }
+
+type EventIdsStruct struct {
+	Id       string   `bson:"_id"`
+	EventIds []string `bson:"keys"`
+}

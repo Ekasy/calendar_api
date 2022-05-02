@@ -9,4 +9,5 @@ type EventsRepository interface {
 	RemoveEvent(eventId string) error
 	GetAllMembers() (map[string][]string, error)
 	RemoveEventIdFromMember(login, eventId string) error
+	GetAllEventIds() ([]string, error)
 }

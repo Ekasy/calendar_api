@@ -69,6 +69,8 @@ func (er *EventsRepository) updateEvent(event *model.Event) error {
 }
 
 func (er *EventsRepository) updateActualEvent(event *model.Event) error {
+	event.Delta = 0
+	event.IsRegular = false
 	filter := bson.M{
 		"_id": "json/events",
 	}
@@ -222,4 +224,53 @@ func (er *EventsRepository) RemoveEventIdFromMember(login, eventId string) error
 		return errors.InternalError
 	}
 	return nil
+}
+
+func (er *EventsRepository) GetAllEventIds() ([]string, error) {
+	step1 := bson.M{
+		"$match": bson.M{
+			"_id": "json/events",
+		},
+	}
+
+	step2 := bson.M{
+		"$project": bson.M{
+			"events": bson.M{
+				"$objectToArray": "$events",
+			},
+		},
+	}
+
+	step3 := bson.M{
+		"$project": bson.M{
+			"keys": "$events.k",
+		},
+	}
+
+	pipeline := []bson.M{step1, step2, step3}
+	cursor, err := er.mongo.Conn.Aggregate(er.mongo.Ctx, pipeline)
+	if err != nil {
+		er.logger.Warnf("[GetAllEventIds] Aggregate: %s", err.Error())
+		return nil, errors.InternalError
+	}
+	defer cursor.Close(er.mongo.Ctx)
+
+	doc := make([]bson.M, 0)
+	err = cursor.All(er.mongo.Ctx, &doc)
+	if err != nil {
+		er.logger.Warnf("[GetAllEventIds] All: %s", err.Error())
+		return nil, errors.InternalError
+	}
+
+	if len(doc) != 1 {
+		er.logger.Warnf("[GetAllEventIds] returned non 1 document: %d", len(doc))
+		return nil, errors.InternalError
+	}
+
+	eventIds := make([]string, 0)
+	for _, eventId := range doc[0]["keys"].(bson.A) {
+		eventIds = append(eventIds, eventId.(string))
+	}
+
+	return eventIds, nil
 }
