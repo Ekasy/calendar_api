@@ -147,7 +147,7 @@ func (ed *EventsDelivery) GetEvent(w http.ResponseWriter, r *http.Request) {
 	w.Write(model.ToBytes(event.ToAnswer()))
 }
 
-const DEFAULT_DAYS_INTERVAL = 365
+const DEFAULT_DAYS_INTERVAL = 30
 
 func getFromToCgies(cgies url.Values) (int64, int64) {
 	fromStr := cgies.Get("from")

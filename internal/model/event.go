@@ -41,6 +41,35 @@ func (be *BsonEvent) ToAnswer() map[string]interface{} {
 	return hm
 }
 
+func (be *BsonEvent) Copy() BsonEvent {
+	m := Event{
+		Id:            be.Meta.Id,
+		Title:         be.Meta.Title,
+		Description:   be.Meta.Description,
+		Timestamp:     be.Meta.Timestamp,
+		Members:       be.Meta.Members,
+		ActiveMembers: be.Meta.ActiveMembers,
+		Delta:         be.Meta.Delta,
+		Author:        be.Meta.Author,
+		IsRegular:     be.Meta.IsRegular,
+	}
+	a := Event{
+		Id:            be.Actual.Id,
+		Title:         be.Actual.Title,
+		Description:   be.Actual.Description,
+		Timestamp:     be.Actual.Timestamp,
+		Members:       be.Actual.Members,
+		ActiveMembers: be.Actual.ActiveMembers,
+		Delta:         be.Actual.Delta,
+		Author:        be.Actual.Author,
+		IsRegular:     be.Actual.IsRegular,
+	}
+	return BsonEvent{
+		Meta:   m,
+		Actual: a,
+	}
+}
+
 func (je *JsonEvent) ToAnswer(sorted bool) map[string]interface{} {
 	hm := make(map[string]interface{}, 0)
 	hm["message"] = "ok"

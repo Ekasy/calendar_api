@@ -5,6 +5,7 @@ import (
 	"nocalendar/internal/app/events"
 	"nocalendar/internal/model"
 	"nocalendar/internal/util"
+	"strconv"
 
 	"github.com/sirupsen/logrus"
 )
@@ -44,7 +45,7 @@ func (eu *EventsUsecase) CreateEvent(event *model.Event, author string) (string,
 	return event.Id, nil
 }
 
-func copyEvent(old_event, new_event *model.Event, is_meta bool) {
+func copyEvent(old_event, new_event *model.Event) {
 	if new_event.Description == "" {
 		new_event.Description = old_event.Description
 	}
@@ -65,18 +66,14 @@ func copyEvent(old_event, new_event *model.Event, is_meta bool) {
 		new_event.ActiveMembers = old_event.ActiveMembers
 	}
 
-	if is_meta && new_event.Delta == 0 {
-		new_event.Delta = old_event.Delta
-	}
-
 	new_event.Author = old_event.Author
 }
 
 func mergeEvents(old_event *model.BsonEvent, new_event *model.Event, affectMeta bool) {
 	if affectMeta {
-		copyEvent(&old_event.Meta, new_event, true)
+		copyEvent(&old_event.Meta, new_event)
 	} else {
-		copyEvent(&old_event.Actual, new_event, false)
+		copyEvent(&old_event.Actual, new_event)
 	}
 }
 
@@ -135,7 +132,32 @@ func (eu *EventsUsecase) GetAllEvents(login string, from, to int64) (*model.Json
 			continue
 		}
 
-		events.Events[eventId] = *ev
+		events.Events[eventId] = ev.Copy()
+		if ev.Meta.Delta == 0 || !ev.Meta.IsRegular {
+			continue
+		}
+
+		ts := ev.Meta.Timestamp
+		idx := int64(0)
+		for {
+			ev.Meta.Timestamp += ev.Actual.Delta * 24 * 60 * 60
+			idx += 1
+			if ev.Meta.Timestamp > to {
+				break
+			}
+			events.Events[eventId+strconv.FormatInt(idx, 10)] = ev.Copy()
+		}
+
+		ev.Meta.Timestamp = ts
+		idx = 0
+		for {
+			ev.Meta.Timestamp -= ev.Actual.Delta * 24 * 60 * 60
+			idx -= 1
+			if ev.Meta.Timestamp < from {
+				break
+			}
+			events.Events[eventId+strconv.FormatInt(idx, 10)] = ev.Copy()
+		}
 	}
 	return events, nil
 }
