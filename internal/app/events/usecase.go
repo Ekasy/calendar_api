@@ -8,4 +8,6 @@ type EventsUsecase interface {
 	GetEvent(eventId string, login string) (*model.BsonEvent, error)
 	GetAllEvents(login string, from, to int64) (*model.JsonEvent, error)
 	RemoveEvent(eventId, login string) error
+
+	AcceptInvite(event_id, login string, is_meta bool) error
 }

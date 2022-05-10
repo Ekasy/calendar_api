@@ -210,7 +210,7 @@
     - `403 {"message": "has not permissions to edit"}`
 ---
 
-* `DELETE /api/event/delete/<уникальный id ивента>`
+* `DELETE /api/event/remove/<уникальный id ивента>`
 
     Ответ сервера:
     - `200 {"message": 'ok"}`

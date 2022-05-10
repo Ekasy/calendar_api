@@ -94,6 +94,32 @@ func (er *EventsRepository) updateActualEvent(event *model.Event) error {
 	return nil
 }
 
+func (er *EventsRepository) updateMetaEvent(event *model.Event) error {
+	event.Delta = 0
+	event.IsRegular = false
+	filter := bson.M{
+		"_id": "json/events",
+	}
+
+	doc, err := er.eventToBson(event)
+	if err != nil {
+		return err
+	}
+
+	body := bson.M{
+		"$set": bson.M{
+			fmt.Sprintf("events.%s.meta", event.Id): doc,
+		},
+	}
+
+	_, err = er.mongo.Conn.UpdateOne(er.mongo.Ctx, filter, body)
+	if err != nil {
+		er.logger.Warnf("[updateMetaEvent] UpdateOne: %s", err.Error())
+		return errors.InternalError
+	}
+	return nil
+}
+
 func (er *EventsRepository) addEventToMember(members []string, eventId string) error {
 	filter := bson.M{
 		"_id": "json/members",
@@ -115,10 +141,12 @@ func (er *EventsRepository) addEventToMember(members []string, eventId string) e
 	return nil
 }
 
-func (er *EventsRepository) InsertEvent(event *model.Event, is_actual bool) (*model.Event, error) {
+func (er *EventsRepository) InsertEvent(event *model.Event, only_actual bool, only_meta bool) (*model.Event, error) {
 	var err error
-	if is_actual {
+	if only_actual {
 		err = er.updateActualEvent(event)
+	} else if only_meta {
+		err = er.updateMetaEvent(event)
 	} else {
 		err = er.updateEvent(event)
 	}
@@ -273,4 +301,67 @@ func (er *EventsRepository) GetAllEventIds() ([]string, error) {
 	}
 
 	return eventIds, nil
+}
+
+func (er *EventsRepository) InsertInvite(invite *model.Invite) error {
+	filter := bson.M{
+		"_id": "json/invites",
+	}
+
+	body := bson.M{
+		"$addToSet": bson.M{
+			"invites": invite,
+		},
+	}
+
+	_, err := er.mongo.Conn.UpdateOne(er.mongo.Ctx, filter, body)
+	if err != nil {
+		er.logger.Warnf("[InsertInvite] UpdateOne: %s", err.Error())
+		return errors.InternalError
+	}
+	return nil
+}
+
+func (er *EventsRepository) CheckInvite(invite *model.Invite) error {
+	doc := &model.InviteBson{}
+	doc.Invites = make([]model.Invite, 0)
+	body := bson.M{
+		"_id":     "json/invites",
+		"invites": invite,
+	}
+	err := er.mongo.Conn.FindOne(er.mongo.Ctx, body).Decode(doc)
+	switch err {
+	case nil:
+		switch len(doc.Invites) {
+		case 0:
+			return errors.InviteNotFound
+		case 1:
+			return nil
+		default:
+			return errors.FoundManyInvites
+		}
+	case mongo.ErrNoDocuments:
+		return errors.InviteNotFound
+	default:
+		return errors.InternalError
+	}
+}
+
+func (er *EventsRepository) RemoveInvite(invite *model.Invite) error {
+	filter := bson.M{
+		"_id": "json/invites",
+	}
+
+	body := bson.M{
+		"$pull": bson.M{
+			"invites": invite,
+		},
+	}
+
+	_, err := er.mongo.Conn.UpdateOne(er.mongo.Ctx, filter, body)
+	if err != nil {
+		er.logger.Warnf("[RemoveInvite] UpdateOne: %s", err.Error())
+		return errors.InternalError
+	}
+	return nil
 }

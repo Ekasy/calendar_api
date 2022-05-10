@@ -128,6 +128,32 @@ func (d *Database) initCollections() error {
 			return errors.InternalError
 		}
 	}
+
+	opts = options.FindOne()
+	opts.SetProjection(bson.M{"invites": 1})
+	exist, err = d.find(bson.M{"_id": "json/invites"}, opts)
+	if err != nil {
+		d.logger.Warnf("[initCollections] find member: %s", err.Error())
+		return errors.InternalError
+	}
+
+	if !exist {
+		err = d.insert(bson.M{
+			"_id": "json/invites",
+			"invites": bson.A{
+				bson.M{
+					"event_id": "1",
+					"login":    "nocalender_user_init",
+					"accepted": false,
+					"meta":     true,
+				},
+			},
+		})
+		if err != nil {
+			d.logger.Warnf("[initCollections] insert member: %s", err.Error())
+			return errors.InternalError
+		}
+	}
 	return nil
 }
 

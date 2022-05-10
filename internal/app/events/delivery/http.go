@@ -42,6 +42,8 @@ func (ed *EventsDelivery) Routing(r *mux.Router) {
 	ev.HandleFunc("/edit", ed.EditEvent).Methods(http.MethodPost, http.MethodOptions)
 	ev.HandleFunc("/all", ed.GetAllEvents).Methods(http.MethodGet, http.MethodOptions)
 	ev.HandleFunc("/remove/{event_id:[\\w]+}", ed.RemoveEvent).Methods(http.MethodDelete, http.MethodOptions)
+
+	ev.HandleFunc("/accept", ed.AcceptInvite).Methods(http.MethodPost, http.MethodOptions)
 }
 
 func (ed *EventsDelivery) CreateEvent(w http.ResponseWriter, r *http.Request) {
@@ -225,4 +227,39 @@ func (ed *EventsDelivery) RemoveEvent(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(200)
 	w.Write([]byte(fmt.Sprintf(`{"message": "ok", "event_id": "%s"}`, eventId)))
+}
+
+func (ed *EventsDelivery) AcceptInvite(w http.ResponseWriter, r *http.Request) {
+	invite := &model.InviteJson{}
+	defer r.Body.Close()
+	buf, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		ed.logger.Warnf("[AcceptInvite] cannot convert body to bytes: %s", err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	err = json.Unmarshal(buf, &invite)
+	if err != nil {
+		ed.logger.Warnf("[AcceptInvite] cannot unmarshal bytes: %s", err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	usr := r.Context().Value(middleware.ContextUserKey).(*model.User)
+	err = ed.eventUsecase.AcceptInvite(invite.EventId, usr.Login, invite.Meta)
+	if err != nil {
+		ed.logger.Warnf("[AcceptInvite] event not found: %s", err.Error())
+		switch err {
+		case errors.EventNotFound:
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(errors.ErrorToBytes(err)))
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(200)
+	w.Write([]byte(fmt.Sprintf(`{"message": "ok", "event_id": "%s"}`, invite.EventId)))
 }

@@ -34,10 +34,15 @@ func addAuthorToMembers(members []string, author string) []string {
 func (eu *EventsUsecase) CreateEvent(event *model.Event, author string) (string, error) {
 	event.Author = author
 	event.Members = addAuthorToMembers(event.Members, author)
-	event.ActiveMembers = event.Members
+	event.ActiveMembers = addAuthorToMembers(event.ActiveMembers, author)
 	event.Id = util.GenerateRandomString(32)
 
-	_, err := eu.repo.InsertEvent(event, false)
+	_, err := eu.repo.InsertEvent(event, false, false)
+	if err != nil {
+		return "", err
+	}
+
+	err = eu.addInvites(event, false, true)
 	if err != nil {
 		return "", err
 	}
@@ -86,6 +91,66 @@ func isParticipant(members []string, login string) bool {
 	return false
 }
 
+func (eu *EventsUsecase) addInvites(event *model.Event, reinvite bool, meta bool) error {
+	for _, member := range event.Members {
+		if event.Author == member {
+			continue
+		}
+
+		inv := &model.Invite{
+			EventId:  event.Id,
+			Login:    member,
+			Accepted: true,
+			Meta:     meta,
+		}
+
+		if reinvite {
+			err := eu.repo.RemoveInvite(inv)
+			if err != nil {
+				return err
+			}
+		} else {
+			err := eu.repo.CheckInvite(inv)
+			switch err {
+			case nil: // invite already accepted
+				continue
+			case errors.InviteNotFound:
+			default:
+				return err
+			}
+		}
+
+		inv.Accepted = false
+		err := eu.repo.InsertInvite(inv)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (eu *EventsUsecase) removeInvites(event *model.Event) error {
+	for _, member := range event.Members {
+		inv := &model.Invite{
+			EventId:  event.Id,
+			Login:    member,
+			Accepted: false,
+		}
+
+		err := eu.repo.RemoveInvite(inv)
+		if err == errors.InternalError {
+			return err
+		}
+
+		inv.Accepted = true
+		err = eu.repo.RemoveInvite(inv)
+		if err == errors.InternalError {
+			return err
+		}
+	}
+	return nil
+}
+
 func (eu *EventsUsecase) EditEvent(event *model.Event, login string, affectMeta bool) (*model.BsonEvent, error) {
 	old_event_version, err := eu.GetEvent(event.Id, login)
 	if err != nil {
@@ -96,12 +161,24 @@ func (eu *EventsUsecase) EditEvent(event *model.Event, login string, affectMeta 
 		return nil, errors.HasNoRights
 	}
 
+	old_ts := old_event_version.Actual.Timestamp
 	mergeEvents(old_event_version, event, affectMeta)
 
-	_, err = eu.repo.InsertEvent(event, !affectMeta)
+	_, err = eu.repo.InsertEvent(event, !affectMeta, false)
 	if err != nil {
 		return nil, err
 	}
+
+	if old_ts != event.Timestamp {
+		if affectMeta {
+			eu.removeInvites(event)
+		}
+		err = eu.addInvites(event, true, affectMeta)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return eu.GetEvent(event.Id, login)
 }
 
@@ -173,4 +250,49 @@ func (eu *EventsUsecase) RemoveEvent(eventId, login string) error {
 	}
 
 	return eu.repo.RemoveEvent(eventId)
+}
+
+func (eu *EventsUsecase) AcceptInvite(event_id, login string, meta bool) error {
+	inv := &model.Invite{
+		EventId:  event_id,
+		Login:    login,
+		Accepted: false,
+		Meta:     meta,
+	}
+
+	err := eu.repo.RemoveInvite(inv)
+	if err != nil {
+		return err
+	}
+
+	// err = eu.repo.InsertInvite(inv)
+	event, err := eu.repo.GetEvent(event_id)
+	if err != nil {
+		return err
+	}
+
+	if meta {
+		for _, member := range event.Meta.ActiveMembers {
+			if member == login {
+				return nil
+			}
+		}
+		event.Meta.ActiveMembers = append(event.Meta.ActiveMembers, login)
+	} else {
+		for _, member := range event.Actual.ActiveMembers {
+			if member == login {
+				return nil
+			}
+		}
+		event.Actual.ActiveMembers = append(event.Actual.ActiveMembers, login)
+	}
+
+	if meta && event.Actual.IsRegular { // if edit meta and actual event is regular
+		_, err = eu.repo.InsertEvent(&event.Meta, false, false)
+	} else if meta { // other case - edit only regular part of event
+		_, err = eu.repo.InsertEvent(&event.Meta, false, true)
+	} else { // edit only actual event
+		_, err = eu.repo.InsertEvent(&event.Actual, true, false)
+	}
+	return err
 }

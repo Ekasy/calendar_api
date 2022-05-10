@@ -40,7 +40,7 @@ func updateTimestamp(er events.EventsRepository, event_id string) {
 
 	if event.Meta.IsRegular && event.Meta.Timestamp < currentTimestamp {
 		event.Meta.Timestamp = event.Meta.Timestamp + event.Meta.Delta
-		_, err = er.InsertEvent(&event.Meta, false)
+		_, err = er.InsertEvent(&event.Meta, false, false)
 		if err != nil {
 			badEventIds = append(badEventIds, event_id)
 		}
