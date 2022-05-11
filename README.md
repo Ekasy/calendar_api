@@ -233,4 +233,4 @@
     
     Ответ сервера:
     - `200 {"message": "ok", "event_id": "<уникальный id ивента>"}`
-    - `404 {"message": "ivent with this id not found"}`
+    - `404 {"message": "event with this id not found"}`
