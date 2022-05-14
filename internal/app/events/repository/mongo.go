@@ -25,101 +25,6 @@ func NewEventsRepository(db *db.Database, logger *logrus.Logger) events.EventsRe
 	}
 }
 
-func (er *EventsRepository) eventToBson(event interface{}) (*bson.M, error) {
-	data, err := bson.Marshal(event)
-	if err != nil {
-		er.logger.Warnf("[requestToBson] cannot marshal request: %s", err.Error())
-		return nil, errors.InternalError
-	}
-
-	doc := &bson.M{}
-	err = bson.Unmarshal(data, doc)
-	if err != nil {
-		er.logger.Warnf("[requestToBson] cannot unmarshal: %s", err.Error())
-		return nil, errors.InternalError
-	}
-	return doc, nil
-}
-
-func (er *EventsRepository) updateEvent(event *model.Event) error {
-	filter := bson.M{
-		"_id": "json/events",
-	}
-
-	doc, err := er.eventToBson(model.BsonEvent{
-		Meta:   *event,
-		Actual: *event,
-	})
-	if err != nil {
-		return err
-	}
-
-	body := bson.M{
-		"$set": bson.M{
-			fmt.Sprintf("events.%s", event.Id): doc,
-		},
-	}
-
-	_, err = er.mongo.Conn.UpdateOne(er.mongo.Ctx, filter, body)
-	if err != nil {
-		er.logger.Warnf("[insertEvent] UpdateOne: %s", err.Error())
-		return errors.InternalError
-	}
-	return nil
-}
-
-func (er *EventsRepository) updateActualEvent(event *model.Event) error {
-	event.Delta = 0
-	event.IsRegular = false
-	filter := bson.M{
-		"_id": "json/events",
-	}
-
-	doc, err := er.eventToBson(event)
-	if err != nil {
-		return err
-	}
-
-	body := bson.M{
-		"$set": bson.M{
-			fmt.Sprintf("events.%s.actual", event.Id): doc,
-		},
-	}
-
-	_, err = er.mongo.Conn.UpdateOne(er.mongo.Ctx, filter, body)
-	if err != nil {
-		er.logger.Warnf("[updateActualEvent] UpdateOne: %s", err.Error())
-		return errors.InternalError
-	}
-	return nil
-}
-
-func (er *EventsRepository) updateMetaEvent(event *model.Event) error {
-	event.Delta = 0
-	event.IsRegular = false
-	filter := bson.M{
-		"_id": "json/events",
-	}
-
-	doc, err := er.eventToBson(event)
-	if err != nil {
-		return err
-	}
-
-	body := bson.M{
-		"$set": bson.M{
-			fmt.Sprintf("events.%s.meta", event.Id): doc,
-		},
-	}
-
-	_, err = er.mongo.Conn.UpdateOne(er.mongo.Ctx, filter, body)
-	if err != nil {
-		er.logger.Warnf("[updateMetaEvent] UpdateOne: %s", err.Error())
-		return errors.InternalError
-	}
-	return nil
-}
-
 func (er *EventsRepository) addEventToMember(members []string, eventId string) error {
 	filter := bson.M{
 		"_id": "json/members",
@@ -141,40 +46,106 @@ func (er *EventsRepository) addEventToMember(members []string, eventId string) e
 	return nil
 }
 
-func (er *EventsRepository) InsertEvent(event *model.Event, only_actual bool, only_meta bool) (*model.Event, error) {
-	var err error
-	if only_actual {
-		err = er.updateActualEvent(event)
-	} else if only_meta {
-		err = er.updateMetaEvent(event)
-	} else {
-		err = er.updateEvent(event)
+func (er *EventsRepository) InsertRegularEvent(event *model.RegularEvent, mode string) error {
+	filter := bson.M{
+		"_id": "json/events",
 	}
 
-	if err != nil {
-		return event, err
+	body := bson.M{
+		"$set": bson.M{
+			fmt.Sprintf("%s.%s", mode, event.Id): event,
+		},
 	}
+
+	_, err := er.mongo.Conn.UpdateOne(er.mongo.Ctx, filter, body)
+	if err != nil {
+		er.logger.Warnf("[InsertRegularEvent] UpdateOne: %s", err.Error())
+		return errors.InternalError
+	}
+
 	err = er.addEventToMember(event.Members, event.Id)
-	return event, err
+	return err
 }
 
-func (er *EventsRepository) GetEvent(eventId string) (*model.BsonEvent, error) {
-	doc := &model.JsonEvent{}
+func (er *EventsRepository) InsertSingleEvent(event *model.SingleEvent, mode string) error {
+	filter := bson.M{
+		"_id": "json/events",
+	}
+
+	body := bson.M{
+		"$set": bson.M{
+			fmt.Sprintf("%s.%s", mode, event.Id): event,
+		},
+	}
+
+	_, err := er.mongo.Conn.UpdateOne(er.mongo.Ctx, filter, body)
+	if err != nil {
+		er.logger.Warnf("[InsertSingleEvent] UpdateOne: %s", err.Error())
+		return errors.InternalError
+	}
+
+	err = er.addEventToMember(event.Members, event.Id)
+	return err
+}
+
+func (er *EventsRepository) getRegularEvent(eventId string) (interface{}, error) {
+	doc := &model.BsonRegularEvent{}
 	opts := options.FindOne()
-	opts.SetProjection(bson.M{fmt.Sprintf("events.%s", eventId): 1})
+	opts.SetProjection(bson.M{fmt.Sprintf("regular.%s", eventId): 1})
 	err := er.mongo.Conn.FindOne(er.mongo.Ctx, bson.M{"_id": "json/events"}, opts).Decode(doc)
 	switch err {
 	case nil:
 		if _, ok := doc.Events[eventId]; !ok {
 			return nil, errors.EventNotFound
 		}
-		event := doc.Events[eventId]
-		return &event, err
+		return doc.Events[eventId], nil
 	case mongo.ErrNoDocuments:
 		return nil, errors.EventNotFound
 	default:
 		return nil, errors.InternalError
 	}
+}
+
+func (er *EventsRepository) getSingleEvent(eventId string) (interface{}, error) {
+	doc := &model.BsonSingleEvent{}
+	opts := options.FindOne()
+	opts.SetProjection(bson.M{fmt.Sprintf("single.%s", eventId): 1})
+	err := er.mongo.Conn.FindOne(er.mongo.Ctx, bson.M{"_id": "json/events"}, opts).Decode(doc)
+	switch err {
+	case nil:
+		if _, ok := doc.Events[eventId]; !ok {
+			return nil, errors.EventNotFound
+		}
+		return doc.Events[eventId], nil
+	case mongo.ErrNoDocuments:
+		return nil, errors.EventNotFound
+	default:
+		return nil, errors.InternalError
+	}
+}
+
+func (er *EventsRepository) GetEvent(eventId string) (interface{}, string, error) {
+	event, err := er.getRegularEvent(eventId)
+	switch err {
+	case nil:
+		return event, model.REGULAR_EVENT, nil
+	case errors.EventNotFound:
+		break
+	case errors.InternalError:
+		return nil, "", err
+	}
+
+	event, err = er.getSingleEvent(eventId)
+	switch err {
+	case nil:
+		return event, model.SINGLE_EVENT, nil
+	case errors.EventNotFound:
+		break
+	case errors.InternalError:
+		return nil, "", err
+	}
+
+	return nil, "", errors.EventNotFound
 }
 
 func (er *EventsRepository) GetEventsIdsByLogin(login string) ([]string, error) {
@@ -195,14 +166,14 @@ func (er *EventsRepository) GetEventsIdsByLogin(login string) ([]string, error) 
 	}
 }
 
-func (er *EventsRepository) RemoveEvent(eventId string) error {
+func (er *EventsRepository) RemoveEvent(eventId, mode string) error {
 	filter := bson.M{
 		"_id": "json/events",
 	}
 
 	body := bson.M{
 		"$unset": bson.M{
-			fmt.Sprintf("events.%s", eventId): "",
+			fmt.Sprintf("%s.%s", mode, eventId): "",
 		},
 	}
 
@@ -303,14 +274,14 @@ func (er *EventsRepository) GetAllEventIds() ([]string, error) {
 	return eventIds, nil
 }
 
-func (er *EventsRepository) InsertInvite(invite *model.Invite) error {
+func (er *EventsRepository) InsertInvite(login, event_id string) error {
 	filter := bson.M{
 		"_id": "json/invites",
 	}
 
 	body := bson.M{
 		"$addToSet": bson.M{
-			"invites": invite,
+			fmt.Sprintf("invites.%s", login): event_id,
 		},
 	}
 
@@ -322,23 +293,32 @@ func (er *EventsRepository) InsertInvite(invite *model.Invite) error {
 	return nil
 }
 
-func (er *EventsRepository) CheckInvite(invite *model.Invite) error {
+func (er *EventsRepository) CheckInvite(login, event_id string) error {
 	doc := &model.InviteBson{}
-	doc.Invites = make([]model.Invite, 0)
+	doc.Invites = make(map[string][]string, 0)
 	body := bson.M{
-		"_id":     "json/invites",
-		"invites": invite,
+		"_id": "json/invites",
 	}
+
+	opts := options.FindOne()
+	opts.SetProjection(bson.M{fmt.Sprintf("invites.%s", login): 1})
+
 	err := er.mongo.Conn.FindOne(er.mongo.Ctx, body).Decode(doc)
 	switch err {
 	case nil:
-		switch len(doc.Invites) {
-		case 0:
+		if len(doc.Invites) == 0 {
 			return errors.InviteNotFound
-		case 1:
-			return nil
-		default:
-			return errors.FoundManyInvites
+		} else {
+			for key, value := range doc.Invites {
+				if key == login {
+					for _, v := range value {
+						if v == event_id {
+							return nil
+						}
+					}
+				}
+			}
+			return errors.InviteNotFound
 		}
 	case mongo.ErrNoDocuments:
 		return errors.InviteNotFound
@@ -347,14 +327,14 @@ func (er *EventsRepository) CheckInvite(invite *model.Invite) error {
 	}
 }
 
-func (er *EventsRepository) RemoveInvite(invite *model.Invite) error {
+func (er *EventsRepository) RemoveInvite(login, event_id string) error {
 	filter := bson.M{
 		"_id": "json/invites",
 	}
 
 	body := bson.M{
 		"$pull": bson.M{
-			"invites": invite,
+			fmt.Sprintf("invites.%s", login): event_id,
 		},
 	}
 
@@ -364,4 +344,34 @@ func (er *EventsRepository) RemoveInvite(invite *model.Invite) error {
 		return errors.InternalError
 	}
 	return nil
+}
+
+func (er *EventsRepository) GetInviteByLogin(login string) ([]string, error) {
+	doc := &model.InviteBson{}
+	doc.Invites = make(map[string][]string, 0)
+	body := bson.M{
+		"_id": "json/invites",
+	}
+
+	opts := options.FindOne()
+	opts.SetProjection(bson.M{fmt.Sprintf("invites.%s", login): 1})
+
+	err := er.mongo.Conn.FindOne(er.mongo.Ctx, body).Decode(doc)
+	switch err {
+	case nil:
+		if len(doc.Invites) == 0 {
+			return nil, errors.InviteNotFound
+		} else {
+			for key, value := range doc.Invites {
+				if key == login {
+					return value, nil
+				}
+			}
+			return nil, errors.InviteNotFound
+		}
+	case mongo.ErrNoDocuments:
+		return nil, errors.InviteNotFound
+	default:
+		return nil, errors.InternalError
+	}
 }

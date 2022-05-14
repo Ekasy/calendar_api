@@ -15,34 +15,45 @@ var (
 	currentTimestamp = time.Now().Unix()
 )
 
-func copyActualByMetaParams(actual *model.Event, meta *model.Event) {
-	actual.Title = meta.Title
-	actual.Description = meta.Description
-	actual.Timestamp = meta.Timestamp
-	actual.Author = meta.Author
-	actual.Members = meta.Members
-	actual.ActiveMembers = meta.ActiveMembers
-	actual.Delta = meta.Delta
-	actual.IsRegular = meta.IsRegular
-}
-
 func updateTimestamp(er events.EventsRepository, event_id string) {
-	event, err := er.GetEvent(event_id)
+	ievent, mode, err := er.GetEvent(event_id)
 	if err != nil {
 		badEventIds = append(badEventIds, event_id)
 		return
 	}
 
-	// in case of meta event is not regular and actual was held -> update actual by meta params
-	if event.Meta.IsRegular && event.Actual.Timestamp < currentTimestamp {
-		copyActualByMetaParams(&event.Actual, &event.Meta)
+	sup_ev_id := ""
+	switch mode {
+	case model.REGULAR_EVENT:
+		sup_ev_id = ievent.(model.RegularEvent).SingleEventId
+	case model.SINGLE_EVENT:
+		sup_ev_id = ievent.(model.SingleEvent).RegularEventId
 	}
+	event := model.ConvertInterfaceToEvent(ievent, mode)
 
-	if event.Meta.IsRegular && event.Meta.Timestamp < currentTimestamp {
-		event.Meta.Timestamp = event.Meta.Timestamp + event.Meta.Delta
-		_, err = er.InsertEvent(&event.Meta, false, false)
-		if err != nil {
-			badEventIds = append(badEventIds, event_id)
+	if event.Timestamp < currentTimestamp {
+		switch mode {
+		case model.REGULAR_EVENT:
+			event.Timestamp += event.Delta * model.DAYS_IN_SECONDS
+			err = er.InsertRegularEvent(event.ToRegular(sup_ev_id), mode)
+			if err != nil {
+				badEventIds = append(badEventIds, event_id)
+			}
+		case model.SINGLE_EVENT:
+			err = er.RemoveEvent(event.Id)
+			if err != nil {
+				badEventIds = append(badEventIds, event_id)
+			}
+			e, _, err := er.GetEvent(sup_ev_id)
+			if err != nil {
+				badEventIds = append(badEventIds, event_id)
+			}
+			ev := e.(model.RegularEvent)
+			ev.SingleEventId = ""
+			err = er.InsertRegularEvent(&ev, mode)
+			if err != nil {
+				badEventIds = append(badEventIds, event_id)
+			}
 		}
 	}
 }
@@ -55,7 +66,7 @@ func updateAllTimestamps(er events.EventsRepository) {
 
 	for _, event_id := range event_ids {
 		// skip initialized event id
-		if event_id == "nocalender_event_init" {
+		if event_id == "nocalender_regular_event_init" || event_id == "nocalender_single_event_init" {
 			continue
 		}
 

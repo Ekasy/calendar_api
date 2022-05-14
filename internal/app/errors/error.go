@@ -29,6 +29,7 @@ var (
 	InviteNotFound      *Error = &Error{Message: "invite has not found"}
 	InviteAlreadyExists *Error = &Error{Message: "invite already exists"}
 	FoundManyInvites    *Error = &Error{Message: "more than one invite was found"}
+	BadInviteCgi        *Error = &Error{Message: "unsupported cgi param"}
 
 	InternalError *Error = &Error{Message: "something went wrong"}
 )

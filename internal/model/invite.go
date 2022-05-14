@@ -1,18 +1,17 @@
 package model
 
-type Invite struct {
-	EventId  string `json:"event_id" bson:"event_id"`
-	Login    string `json:"login" bson:"login"`
-	Accepted bool   `json:"accepted" bson:"accepted"`
-	Meta     bool   `json:"meta" bson:"meta"`
-}
-
 type InviteBson struct {
-	Id      string   `bson:"_id"`
-	Invites []Invite `bson:"invites"`
+	Id      string              `json:"_id"`
+	Invites map[string][]string `json:"invites"`
 }
 
 type InviteJson struct {
-	EventId string `json:"event_id"`
-	Meta    bool   `json:"is_regular"`
+	Invites []string `json:"invites"`
+}
+
+func (ij *InviteJson) ToAnswer() interface{} {
+	hm := make(map[string]interface{})
+	hm["message"] = "ok"
+	hm["invites"] = ij.Invites
+	return hm
 }

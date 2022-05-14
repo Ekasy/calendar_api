@@ -96,9 +96,14 @@ func (d *Database) initCollections() error {
 	if !exist {
 		err = d.insert(bson.M{
 			"_id": "json/events",
-			"events": bson.M{
-				"nocalender_event_init": bson.M{
-					"id": 1,
+			"regular": bson.M{
+				"nocalender_regular_event_init": bson.M{
+					"id": "1",
+				},
+			},
+			"single": bson.M{
+				"nocalender_single_event_init": bson.M{
+					"id": "1",
 				},
 			},
 		})
@@ -120,7 +125,7 @@ func (d *Database) initCollections() error {
 		err = d.insert(bson.M{
 			"_id": "json/members",
 			"members": bson.M{
-				"nocalender_member_init": bson.A{"nocalender_event_init"},
+				"nocalender_member_init": bson.A{"nocalender_regular_event_init"},
 			},
 		})
 		if err != nil {
@@ -140,13 +145,8 @@ func (d *Database) initCollections() error {
 	if !exist {
 		err = d.insert(bson.M{
 			"_id": "json/invites",
-			"invites": bson.A{
-				bson.M{
-					"event_id": "1",
-					"login":    "nocalender_user_init",
-					"accepted": false,
-					"meta":     true,
-				},
+			"invites": bson.M{
+				"nocalender_user_init": bson.A{"nocalender_single_event_init"},
 			},
 		})
 		if err != nil {

@@ -12,7 +12,7 @@ import (
 func removeUnusedEvents(er events.EventsRepository, member string, arr_events []string) bool {
 	all_removed := true
 	for _, event_id := range arr_events {
-		_, err := er.GetEvent(event_id)
+		_, _, err := er.GetEvent(event_id)
 		if err == errors.EventNotFound {
 			err = er.RemoveEventIdFromMember(member, event_id)
 			if err != nil {
