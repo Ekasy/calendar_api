@@ -45,6 +45,7 @@ func (ed *EventsDelivery) Routing(r *mux.Router) {
 
 	ev.HandleFunc("/accept/{event_id:[\\w]+}", ed.AcceptInvite).Methods(http.MethodPost, http.MethodOptions)
 	ev.HandleFunc("/invites", ed.GetInvites).Methods(http.MethodGet, http.MethodOptions)
+	ev.HandleFunc("/reject/{event_id:[\\w]+}", ed.RejectInvite).Methods(http.MethodPost, http.MethodOptions)
 }
 
 func (ed *EventsDelivery) CreateEvent(w http.ResponseWriter, r *http.Request) {
@@ -278,4 +279,24 @@ func (ed *EventsDelivery) GetInvites(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(200)
 	w.Write(model.ToBytes(invites.ToAnswer()))
+}
+
+func (ed *EventsDelivery) RejectInvite(w http.ResponseWriter, r *http.Request) {
+	eventId := mux.Vars(r)["event_id"]
+	usr := r.Context().Value(middleware.ContextUserKey).(*model.User)
+	err := ed.eventUsecase.RejectInvite(eventId, usr.Login)
+	if err != nil {
+		ed.logger.Warnf("[RejectInvite]: %s", err.Error())
+		switch err {
+		case errors.EventNotFound:
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(errors.ErrorToBytes(err)))
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(200)
+	w.Write([]byte(`{"message": "ok"}`))
 }

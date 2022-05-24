@@ -328,3 +328,46 @@ func (eu *EventsUsecase) GetInvites(cgi string, cgi_type string, login string) (
 	}
 	return nil, errors.BadInviteCgi
 }
+
+func removeLoginFromMembers(members []string, login string) []string {
+	newMembers := make([]string, 0)
+	for _, member := range members {
+		if login == member {
+			continue
+		}
+		newMembers = append(newMembers, member)
+	}
+	return newMembers
+}
+
+func (eu *EventsUsecase) RejectInvite(event_id, login string) error {
+	if err := eu.repo.RemoveInvite(login, event_id); err != nil {
+		return err
+	}
+
+	if err := eu.repo.RemoveEventIdFromMember(login, event_id); err != nil {
+		return err
+	}
+
+	old_event_version, mode, err := eu.repo.GetEvent(event_id)
+	if err != nil {
+		return err
+	}
+
+	// copy single_event_id for regular event or regular_event_id for single event
+	var sup_ev_id string
+	if mode == model.REGULAR_EVENT {
+		sup_ev_id = old_event_version.(map[string]interface{})["single_event_id"].(string)
+	} else {
+		sup_ev_id = old_event_version.(map[string]interface{})["regular_event_id"].(string)
+	}
+
+	event := model.ConvertInterfaceToEvent(old_event_version, mode)
+	event.Members = removeLoginFromMembers(event.Members, login)
+	event.ActiveMembers = removeLoginFromMembers(event.ActiveMembers, login)
+	if mode == model.REGULAR_EVENT {
+		return eu.repo.InsertRegularEvent(event.ToRegular(sup_ev_id), mode)
+	} else {
+		return eu.repo.InsertSingleEvent(event.ToSingle(sup_ev_id), mode)
+	}
+}

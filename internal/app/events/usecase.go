@@ -11,4 +11,5 @@ type EventsUsecase interface {
 
 	AcceptInvite(event_id, login string) error
 	GetInvites(cgi string, cgi_type string, login string) (*model.InviteJson, error)
+	RejectInvite(event_id, login string) error
 }
